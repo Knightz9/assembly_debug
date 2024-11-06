@@ -158,6 +158,76 @@ push 操作也做了两件事情，将寄存器入栈，SP = SP - 2，由于 ax 
 
 我们再来看一下 PSP 的情况，由于程序被装入的时候前 256 个字节是 PSP 所占用的，此时 DS（SA）处就是 PSP 的起始地址，而 CS = SA + 10H ，也就是 CS = 076AH。
 
+## debug 循环程序
+
+下面我们来 debug 一下循环程序，看看有哪些有意思的细节。
+
+现在有这样一道问题，计算 ffff:0006 单元中的数乘 3 ，让结果存储在 dx 中。
+
+针对这个问题，有几个点需要思考：
+
+* 我们知道 ，8086 汇编语言中单个存储单元所能存储的最大值是 8 位，一个字节长度，范围是 0 - 255 之间，而一个寄存器 dx 中可容纳的最大值是 16 位，两个字节长度，范围是 0 - 65535，即使 255 * 3 也小于 65535，很显然乘以 3 之后，dx 中能够存放的下。
+* 数乘 3 相当于是循环做 add 自身操作 3 次，所以需要用加法来实现乘法，可以直接使用 dx 进行累加，不过需要一个 ax 来进行中转。
+* ffff:6 内存单元是一个字节单元，而 ax 寄存器能容纳的是一个字单元，无法直接赋值，该如何做呢？因为 ax 可以看做 al 和 ah ，而 al 和 ah 又是两个单独的寄存器，它们之间不会发生值溢出，所以让 ah = 0 ，al = 内存单元的值即可。
+
+所以这段汇编程序的代码如下
+
+```assembly
+codesg segment
+    main proc far
+    assume cs:codesg
+    start:
+        mov ax,0ffffh
+        mov ds,ax
+        mov bx,6
+ 
+        mov ah,0
+        mov al,[bx] ; 必须要用 bx 进行中转，才能表示内存地址
+        mov dx,0  	; 累加寄存器清 0 
+
+        mov cx,3
+        s: add dx,ax
+        loop s
+
+        mov ax,4c00h
+        int 21h
+    main endp
+codesg ends
+end start
+```
+
+编写完毕，编译链接成 exe 程序后，对其进行 debug xxx.exe 操作。
+
+我们来看下程序的执行过程。
+
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/14.png"/>
+
+前两段没毛病，设置 DS 段寄存器的值为 FFFF 。然后继续向下执行
+
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/15.png"/>
+
+执行到 mov al,[bx] 的时候，我们发现，此时右侧有个 ds:0006 = 31，这段代码表示的是 ds:0006 处内存单元的值是 31，这才表明我们的程序是正确的。
+
+继续向下执行程序。
+
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/16.png"/>
+
+前两条指令执行完成后，(dx) = 0 ，(cx) = 3，完成对累加寄存器的清空和循环计数器的赋值操作。最后一条指令是第一次循环操作指令，此时 CS:IP 指向 076A:0012 ，继续向下执行。
+
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/17.png"/>
+
+可以看到，第一次 add dx,ax 执行完成后 IP = 0014H ，此时指向的指令是 LOOP 0012，这条指令的意思是让程序再执行一次 (IP) = 0012H 处的指令，也就是再执行一次 add dx,ax，可以看到 cx 的值变成了 0002，因为循环指令执行后 (cx) = (cx) - 2 ，
+
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/18.png"/>
+
+然后再向下执行，发现后面的循环指令还是 LOOP 0012 ，再执行一次 add dx,ax，一直到 (cx) = 0 后结束程序执行，如下图所示
+
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/19.png"/>
+
+可以发现，整个程序一共循环三次，最终 dx 中的值是 93 ，程序执行到 int 21H 处，使用 -p 命令结束程序的执行。
+
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/20.png"/>
+
 ## 总结
 
 这篇文章我带你从 debug 操作入手跟踪了一下指令，我跟踪的步骤还是比较细致的，希望各位小伙伴们看完能有所收获，最好是跟着一起执行一遍！
