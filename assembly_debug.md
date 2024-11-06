@@ -92,40 +92,39 @@ end start
 下面再分析一段程序，汇编原代码
 
 ```assembly
-assume cs:codesg
-
 codesg segment
+    main proc far
+    assume cs:codesg
+    start:
+	    mov ax,2000H
+ 	    mov ss,ax
+ 	    mov sp,0
+ 	    add sp,10
+ 	    pop ax
+ 	    pop bx
+ 	    push ax
+ 	    push bx
+ 	    pop ax
+ 	    pop bx
 
-	mov ax,2000H
- 	mov ss,ax
- 	mov sp,0
- 	add sp,10
- 	pop ax
- 	pop bx
- 	push ax
- 	push bx
- 	pop ax
- 	pop bx
-
- 	mov ax,4c00H
- 	int 21H
-
+ 	    mov ax,4c00H
+ 	    int 21H
+main endp
 codesg ends
-
-end
+end start
 ```
 
-仍然是将其保存为 test.txt，然后执行编译和链接操作，将其生成可执行文件 test.exe，观察其执行过程。
+仍然是将其保存为 2.txt，然后执行编译和链接操作，将其生成可执行文件 2.exe，观察其执行过程。
 
 我们先使用 -r 查看一下初始寄存器的内容。
 
-![](http://www.cxuan.vip/image-20230118092130411.png)
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/6.png"/>
 
 主要观察一下 CX 、DS 、CS 和 IP 的值，是否和我们上面描述的一致，CX 存放程序长度，DS 存放程序段地址，CS 存放程序初始地址，IP 存放程序偏移地址。
 
 再使用 -u 看一下 exe 程序的源代码，这个 exe 程序是经过编译和链接之后的程序。
 
-![](http://www.cxuan.vip/image-20230118092139591.png)
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/7.png"/>
 
 我们来分析一下这段，这是一段栈段的入栈和出栈的程序，首先
 
@@ -137,29 +136,31 @@ mov sp,0
 
 是设置栈段的栈顶指令，执行完成后会设置栈顶的物理地址为 20000 H ，即 SS:SP = 2000:0000。
 
-![](http://www.cxuan.vip/image-20230118092222438.png)
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/8.png"/>
 
 我们执行这个程序的过程中，发现 mov sp,0 这个指令为什么没有出现呢？难道是我们漏写了？查看了一下，源代码确实是有这条指令的，难道是没有执行？
 
 为了验证这个假设，我们重新 debug 一下这段程序，然后先把 SP 的值进行修改，如下图所示。
 
-![](http://www.cxuan.vip/image-20230118092237736.png)
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/9.png"/>
 
 刚开始，我们使用 -r 把 sp 的值改成 0002，然后单步执行，在执行到 mov ss,ax 之后，发现 SP 的值变为 0000，这也就是说 mov sp,0 这条指令其实是执行了的，只是 debug 模式下没有显示而已。
 
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/10.png"/>
+
 程序继续向下执行，下面是两个 pop 出栈操作。
 
-![](http://www.cxuan.vip/image-20230118092250243.png)
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/11.png"/>
 
 pop ax 和 pop bx 做了两件事：把寄存器清空；栈顶位置 + 2 ，所以 ax 和 bx 寄存器的内容为 0 ，并且 SP = SP + 2 ，执行后 SP = 000E。
 
 之后是两个 push 操作，把出栈的两个寄存器再进行入栈，如下图所示。
 
-![](http://www.cxuan.vip/image-20230118092302858.png)
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/12.png"/>
 
 push 操作也做了两件事情，将寄存器入栈，SP = SP - 2，由于 ax 和 bx 已经 pop 出栈了，所以寄存器内容为 0 ，最后再进行 pop 操作，然后再结束程序的执行过程。
 
-![](http://www.cxuan.vip/image-20230118092340074.png)
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/13.png"/>
 
 我们再来看一下 PSP 的情况，由于程序被装入的时候前 256 个字节是 PSP 所占用的，此时 DS（SA）处就是 PSP 的起始地址，而 CS = SA + 10H ，也就是 CS = 076AH。
 
