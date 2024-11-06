@@ -7,7 +7,7 @@
 
 学习任何一门语言都不能少的了 debug ，汇编也是。
 
-我前面这篇文章给大家写了如何在 windows 、mac 等操作系统的机器上使用 dosbox 的 masm、link、debug 功能编译、解释、运行一个汇编程序，文章链接如下：
+我前面这篇文章给大家写了如何在 windows操作系统的机器上使用 dosbox 的 masm、link、debug 功能编译、解释、运行一个汇编程序.
 
 ## debug 程序执行过程
 
@@ -15,27 +15,29 @@
 
 >debug 对我们来说非常重要，有很多代码细节和问题通过肉眼是观察出来的，我们肉眼可能能够判断一些简单的程序问题，但是对于很多隐藏较深的问题，还是要依据 debug 才能发现。
 
-下面是一段汇编代码，这段汇编代码我之前的文章中也给大家写过。
+下面是一段汇编代码。
 
 ```assembly
-assume cs:codesg
 codesg segment
+main proc far
+    assume cs:codesg
+    start:
 
-	mov ax,0123h
-	mov bx,0456h
-	add ax,bx
-	add ax,ax
+	    mov ax,0123h
+	    mov bx,0456h
+	    add ax,bx
+	    add ax,ax
 
-	mov ax,4c00h
-	int 21h
-
+	    mov ax,4c00h
+	    int 21h
+main endp
 codesg ends
-end
+end start
 ```
 
 新建文本文件，把代码 cv 过去，然后右键保存，使用 dosbox 将其编译为 1.obj 文件，链接为 1.exe 文件后，我们使用 `debug 1.exe` 命令来分析一下这段程序，并用 -r 命令来看一下初始的寄存器情况。
 
-<img src="http://www.cxuan.vip/image-20230118091901358.png" style="zoom:50%;" />
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/1.png" style="zoom:50%;" />
 
 程序初始状态下，可以看到 CX 中的数据为 000F，这也表示着程序的长度是 000F，1.exe 中共有 15 个字节，CX 中的内容为 000FH。
 
@@ -65,21 +67,23 @@ end
 
 我们使用 -u 指令可以看到完整的汇编源代码。
 
-<img src="http://www.cxuan.vip/image-20230118091941573.png"/>
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/2.png"/>
 
 上图中用红框圈出来的就是我们这段汇编程序的源代码，可以看到这是一个程序段，程序段的段地址始终为 076A，偏移地址在不断变化。
 
 我们使用 -t 命令来单步执行以下这段程序，如下图所示。
 
-<img src="http://www.cxuan.vip/image-20230118091951366.png"/>
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/3.png"/>
 
 （为了连续的观察一下程序的执行结果，我索性直接把主要的程序步骤执行完了。）
+
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/4.png"/>
 
 这段程序就是 mov 和 add 的基本使用，将 0123 送入 AX 寄存器，将 0456 送入 BX 寄存器，对 AX 寄存器执行 AX = AX + BX ，再对 AX 执行 AX = AX + AX。
 
 程序继续向下执行，当执行到 int 21H 处，程序执行完毕，此时要使用 -p 命令结束程序的执行，如下图所示。
 
-<img src="http://www.cxuan.vip/image-20230118092030075.png"/>
+<img src="https://github.com/Knightz9/assembly_debug/blob/main/5.png"/>
 
 当显示 Program terminated normally 时，表示程序正常结束，这里大家先不用考虑为什么执行到 int 21 处才执行 -p 命令，也不用关心 mov ax,4c00 和 int 21 是什么意思，大家先记住就行。
 
